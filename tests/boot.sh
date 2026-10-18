@@ -3,14 +3,18 @@
 # a kernel-linux release (interface version 3, init_system), and checks
 # what an instance does: the image's init reaches running with nothing
 # failed, sshd accepts the account's key for root, cron and the package
-# mirrors work, the network and DNS are the ones the platform's init set
-# up, each instance makes its own host keys and machine ID and keeps them,
-# and a poweroff inside ends the machine with a poweroff report.
+# mirrors work, no package update is pending, the services of the image's
+# timers run, the network and DNS are the ones the platform's init set up,
+# each instance makes its own host keys and machine ID and keeps them, and
+# a poweroff inside ends the machine with a poweroff report.
 #
 #   tests/boot.sh --kernel DIR [NAME[:VERSION]...]   (every image without names)
 #
-# Three instances an image: a first one and a second from fresh disks at
-# 256 MiB, then the first again at 512 MiB, which reaches the mirrors.
+# Three instances an image, each at the image's minimum memory
+# (images.toml): a first one and a second from fresh disks, then the first
+# again, which reaches the mirrors and starts the service of every timer.
+# The second runs on the oldest CPU model of the image's x86-64 level, the
+# others on the host's CPU.
 #
 # DIR holds a kernel-linux release's bzImage and initramfs.cpio.zst. Each
 # image is the one scripts/build.sh tagged. Its root disk is the image's
@@ -61,10 +65,6 @@ done
 [[ -r /dev/kvm && -w /dev/kvm ]] || die "/dev/kvm is not usable"
 selected=$(select_images "$@")
 
-# MemAvailable is measured at 256 MiB, the package mirrors are reached at
-# 512 MiB (dnf on EL 9 needs more than 256 MiB without swap).
-small_mib=256
-mirrors_mib=512
 disk_size=2G
 ssh_wait_seconds=180
 poweroff_wait_seconds=60
@@ -91,6 +91,18 @@ fail() {
     echo "  FAIL: $*"
     failures=$((failures + 1))
     image_failures=$((image_failures + 1))
+}
+
+# cpu_model LEVEL: QEMU's oldest CPU model with every feature of x86-64
+# level LEVEL, and nothing of the next.
+cpu_model() {
+    case $1 in
+        1) echo kvm64 ;;
+        2) echo Nehalem ;;
+        3) echo Haswell-noTSX ;;
+        4) echo Skylake-Server-noTSX-IBRS ;;
+        *) die "no CPU model for x86-64 level $1" ;;
+    esac
 }
 
 # free_port: a TCP port on 127.0.0.1 nothing listens on.
@@ -143,7 +155,8 @@ ssh_run() {
 }
 
 # The checks inside an instance, as POSIX sh; the arguments: the init
-# system, then "mirrors" to reach the package mirrors. Lines of KEY VALUE.
+# system, then "mirrors" to reach the package mirrors, count the pending
+# updates and start the service of every timer. Lines of KEY VALUE.
 # shellcheck disable=SC2016 # expanded by the instance's shell
 inside='
 init=$1
@@ -194,10 +207,32 @@ echo "machine_id $(cat /etc/machine-id 2> /dev/null)"
 if [ "${mirrors}" = mirrors ]; then
     if command -v apt-get > /dev/null; then
         apt-get -q -q update > /dev/null 2>&1 && echo "mirrors ok" || echo "mirrors fail"
+        if simulated=$(apt-get -s -q dist-upgrade 2> /dev/null); then
+            echo "pending_updates $(echo "${simulated}" | grep -c "^Inst ")"
+        fi
     elif command -v dnf > /dev/null; then
         dnf -q -y makecache > /dev/null 2>&1 && echo "mirrors ok" || echo "mirrors fail"
+        listed=$(dnf -q check-update 2> /dev/null)
+        case $? in
+            0) echo "pending_updates 0" ;;
+            100) echo "pending_updates $(echo "${listed}" | awk "NF == 3 && \$1 ~ /[.]/" | wc -l)" ;;
+        esac
     else
         apk update -q > /dev/null 2>&1 && echo "mirrors ok" || echo "mirrors fail"
+        if simulated=$(apk upgrade --simulate 2> /dev/null); then
+            echo "pending_updates $(echo "${simulated}" | grep -c " Upgrading ")"
+        fi
+    fi
+    # What a timer starts later, at any time in the life of the instance,
+    # must work at this memory too.
+    if [ "${init}" = systemd ]; then
+        for timer in $(systemctl list-units --type=timer --state=active --no-legend --plain | awk "{ print \$1 }"); do
+            for service in $(systemctl show -p Triggers --value "${timer}"); do
+                timeout 600 systemctl start "${service}" > /dev/null 2>&1
+                echo "timer ${timer} ${service} $(systemctl show -p Result --value "${service}")"
+            done
+        done
+        echo "state_after_timers $(systemctl is-system-running 2> /dev/null)"
     fi
 fi
 true
@@ -208,13 +243,13 @@ value() {
     sed -n "s/^$1 //p" "${case_dir}/inside.txt" | head -n 1 | sed 's/ *$//'
 }
 
-# boot_instance CASE DISK MEMORY_MIB INIT STOP_SIGNAL HOSTNAME [mirrors]:
-# boots DISK, runs the checks inside over SSH (their lines in
-# $case_dir/inside.txt), then powers the instance off from inside and
-# checks it ends. With "mirrors" the instance also reaches the package
-# mirrors.
+# boot_instance CASE DISK MEMORY_MIB CPU INIT STOP_SIGNAL HOSTNAME [mirrors]:
+# boots DISK on QEMU's CPU model CPU, runs the checks inside over SSH
+# (their lines in $case_dir/inside.txt), then powers the instance off from
+# inside and checks it ends. With "mirrors" the instance also reaches the
+# package mirrors and starts its timers' services.
 boot_instance() {
-    local name=$1 disk=$2 memory=$3 init=$4 stop_signal=$5 hostname=$6 mirrors=${7:-}
+    local name=$1 disk=$2 memory=$3 cpu=$4 init=$5 stop_signal=$6 hostname=$7 mirrors=${8:-}
     case_dir=${work}/${name}
     mkdir -p "${case_dir}"
     port=$(free_port)
@@ -226,7 +261,7 @@ print(json.dumps({"version": 3, "argv": ["/sbin/init"], "init_system": True,
 PYTHON
     local cmdline="console=ttyS0 quiet gh.v=3 gh.hostname=${hostname} gh.ip4=10.115.0.15/24 gh.gw4=10.115.0.1 gh.dns=10.115.0.3 gh.vsock=1024"
     timeout "${machine_timeout}" qemu-system-x86_64 \
-        -M pc -enable-kvm -cpu host -m "${memory}" -smp 1 -nodefaults -no-user-config \
+        -M pc -enable-kvm -cpu "${cpu},enforce" -m "${memory}" -smp 1 -nodefaults -no-user-config \
         -display none -no-reboot \
         -kernel "${kernel}" -initrd "${initrd}" -append "${cmdline}" \
         -serial "file:${case_dir}/serial.log" \
@@ -296,8 +331,20 @@ check_instance() {
     if [[ ${init} == systemd && ! $(value machine_id) =~ ^[0-9a-f]{32}$ ]]; then
         fail "${name}: the machine ID is '$(value machine_id)'"
     fi
-    if [[ ${mirrors} == mirrors && $(value mirrors) != ok ]]; then
-        fail "${name}: the package mirrors are not reached"
+    if [[ ${mirrors} == mirrors ]]; then
+        [[ $(value mirrors) == ok ]] || fail "${name}: the package mirrors are not reached"
+        case $(value pending_updates) in
+            0) ;;
+            '') fail "${name}: the pending package updates are not counted" ;;
+            *) fail "${name}: $(value pending_updates) package updates pending: the image is older than its distribution's updates (rebuild it)" ;;
+        esac
+        local timer
+        while read -r timer; do
+            [[ ${timer} == *" success" ]] || fail "${name}: a timer's service fails: ${timer}"
+        done < <(sed -n 's/^timer //p' "${case_dir}/inside.txt")
+        if [[ ${init} == systemd && $(value state_after_timers) != running ]]; then
+            fail "${name}: the state after the timers' services is $(value state_after_timers)"
+        fi
     fi
     grep -a -q 'gigahost-init: report {"v":3,"event":"started","pid":[0-9]*,' "${case_dir}/serial.log" \
         || fail "${name}: no started report"
@@ -320,8 +367,9 @@ show_logs() {
 }
 
 summary=()
-while IFS=$'\t' read -r -u 3 name version _family init stop_signal _base display_name; do
+while IFS=$'\t' read -r -u 3 name version _family init stop_signal _base display_name memory level; do
     image=$(image_tag "${name}" "${version}")
+    memory_mib=$((memory / 1048576))
     image_failures=0
     echo "boot.sh: ${image} (${display_name})"
     podman image exists "${image}" || { fail "${image} is not built"; continue; }
@@ -330,20 +378,21 @@ while IFS=$'\t' read -r -u 3 name version _family init stop_signal _base display
     cp --sparse=always "${work}/${slug}.img" "${work}/${slug}-a.img"
     mv "${work}/${slug}.img" "${work}/${slug}-b.img"
 
-    # A first instance, a second one from a fresh disk, the first again.
-    boot_instance "${slug}-a" "${work}/${slug}-a.img" "${small_mib}" "${init}" "${stop_signal}" "${slug}-a"
+    # A first instance, a second one from a fresh disk on the oldest CPU
+    # the image is for, the first again.
+    boot_instance "${slug}-a" "${work}/${slug}-a.img" "${memory_mib}" host "${init}" "${stop_signal}" "${slug}-a"
     a_dir=${case_dir}
     boot_seconds=$(value boot_seconds)
     mem_kib=$(value mem_available_kib)
     mem_mib=$(( ${mem_kib:-0} / 1024 ))
     a_key=$(value hostkey)
     a_id=$(value machine_id)
-    boot_instance "${slug}-b" "${work}/${slug}-b.img" "${small_mib}" "${init}" "${stop_signal}" "${slug}-b"
+    boot_instance "${slug}-b" "${work}/${slug}-b.img" "${memory_mib}" "$(cpu_model "${level}")" "${init}" "${stop_signal}" "${slug}-b"
     [[ -n ${a_key} && $(value hostkey) != "${a_key}" ]] || fail "${slug}: two instances have the same host key"
     if [[ ${init} == systemd ]]; then
         [[ -n ${a_id} && $(value machine_id) != "${a_id}" ]] || fail "${slug}: two instances have the same machine ID"
     fi
-    boot_instance "${slug}-a-again" "${work}/${slug}-a.img" "${mirrors_mib}" "${init}" "${stop_signal}" "${slug}-a" mirrors
+    boot_instance "${slug}-a-again" "${work}/${slug}-a.img" "${memory_mib}" host "${init}" "${stop_signal}" "${slug}-a" mirrors
     [[ $(value hostkey) == "${a_key}" ]] || fail "${slug}: the host key changed between two boots of one instance"
     [[ $(value machine_id) == "${a_id}" ]] || fail "${slug}: the machine ID changed between two boots of one instance"
     rm -f "${work}/${slug}-a.img" "${work}/${slug}-b.img"
@@ -351,12 +400,12 @@ while IFS=$'\t' read -r -u 3 name version _family init stop_signal _base display
 
     size=$(compressed_mib "${image}")
     if [[ ${image_failures} == 0 ]]; then result=ok; else result="${image_failures} failed"; fi
-    summary+=("$(printf '%-18s %8s %10s %10s  %s' "${name}:${version}" "${boot_seconds:-?}" "${mem_mib}" "${size}" "${result}")")
+    summary+=("$(printf '%-18s %8s %8s %10s %10s  %s' "${name}:${version}" "${memory_mib}" "${boot_seconds:-?}" "${mem_mib}" "${size}" "${result}")")
     echo "  ${summary[-1]}"
 done 3<<< "${selected}"
 
 echo
-printf '%-18s %8s %10s %10s  %s\n' image boot_s avail_MiB gzip_MiB result
+printf '%-18s %8s %8s %10s %10s  %s\n' image mem_MiB boot_s avail_MiB gzip_MiB result
 printf '%s\n' "${summary[@]}"
 if [[ ${failures} != 0 ]]; then
     echo "boot.sh: ${failures} check(s) failed"

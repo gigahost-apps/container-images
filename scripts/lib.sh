@@ -3,14 +3,16 @@
 # the local tag of a built image. Source it after setting ${repo}.
 
 # images_tsv: one line per image of images.toml, checked, in its order:
-# name, version, family, init, stop signal, base, display name, separated
-# by tabs.
+# name, version, family, init, stop signal, base, display name, minimum
+# memory in bytes, x86-64 level, separated by tabs.
 images_tsv() {
     # shellcheck disable=SC2154 # the sourcing script sets repo
     python3 - "${repo}/images.toml" << 'PYTHON'
 import re, sys, tomllib
 
-FIELDS = ["name", "version", "family", "init", "stop_signal", "base", "display_name"]
+FIELDS = ["name", "version", "family", "init", "stop_signal", "base", "display_name",
+          "minimum_memory_bytes", "x86_64_level"]
+MIB = 1048576
 INITS = {"systemd": ("debian", "ubuntu", "rhel"), "openrc": ("alpine",)}
 STOP = {"systemd": 37, "openrc": 12}
 
@@ -39,6 +41,12 @@ for image in images:
         die(f"{key}: the base is not a Docker Hub image by tag and digest")
     if "\t" in image["display_name"]:
         die(f"{key}: the display name holds a tab")
+    memory = image["minimum_memory_bytes"]
+    if type(memory) is not int or memory % MIB or memory < 256 * MIB:
+        die(f"{key}: minimum_memory_bytes is not a whole number of MiB, at least 256 MiB")
+    level = image["x86_64_level"]
+    if type(level) is not int or level not in (1, 2, 3, 4):
+        die(f"{key}: x86_64_level is not 1, 2, 3 or 4")
     print("\t".join(str(image[field]) for field in FIELDS))
 PYTHON
 }

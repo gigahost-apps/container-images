@@ -10,31 +10,42 @@ version 3, `init_system`). They are published on GHCR as
 
 ## The images
 
-| Image | Name and tag | Init | Stop signal |
-|---|---|---|---|
-| Debian 13 (trixie) | `debian:13` | systemd | 37 (`SIGRTMIN+3`) |
-| Debian 12 (bookworm) | `debian:12` | systemd | 37 (`SIGRTMIN+3`) |
-| Ubuntu 26.04 LTS | `ubuntu:26.04` | systemd | 37 (`SIGRTMIN+3`) |
-| Ubuntu 24.04 LTS | `ubuntu:24.04` | systemd | 37 (`SIGRTMIN+3`) |
-| Ubuntu 22.04 LTS | `ubuntu:22.04` | systemd | 37 (`SIGRTMIN+3`) |
-| Alpine Linux 3.24 | `alpine:3.24` | busybox init running OpenRC | 12 (`SIGUSR2`) |
-| Rocky Linux 10 | `rockylinux:10` | systemd | 37 (`SIGRTMIN+3`) |
-| Rocky Linux 9 | `rockylinux:9` | systemd | 37 (`SIGRTMIN+3`) |
-| AlmaLinux 10 | `almalinux:10` | systemd | 37 (`SIGRTMIN+3`) |
-| AlmaLinux 9 | `almalinux:9` | systemd | 37 (`SIGRTMIN+3`) |
+| Image | Name and tag | Init | Stop signal | Minimum memory | x86-64 level |
+|---|---|---|---|---|---|
+| Debian 13 (trixie) | `debian:13` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Debian 12 (bookworm) | `debian:12` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Ubuntu 26.04 LTS | `ubuntu:26.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Ubuntu 24.04 LTS | `ubuntu:24.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Ubuntu 22.04 LTS | `ubuntu:22.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Alpine Linux 3.24 | `alpine:3.24` | busybox init running OpenRC | 12 (`SIGUSR2`) | 256 MiB | 1 |
+| Rocky Linux 10 | `rockylinux:10` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 3 |
+| Rocky Linux 9 | `rockylinux:9` | systemd | 37 (`SIGRTMIN+3`) | 512 MiB | 2 |
+| AlmaLinux 10 | `almalinux:10` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 3 |
+| AlmaLinux 9 | `almalinux:9` | systemd | 37 (`SIGRTMIN+3`) | 512 MiB | 2 |
 
 [`images.toml`](images.toml) lists them with their bases, the official
 images on Docker Hub, pinned by digest. Each image's command is
 `/sbin/init`, run as the container's init system; its `STOPSIGNAL` is the
 signal on which that init shuts down cleanly (the kernel delivers no other
 to it). Labels: `org.opencontainers.image.source`, `.title`, `.version`,
-`.revision`, `cloud.gigahost.init-system` (`systemd` or `openrc`) and
-`cloud.gigahost.ssh-user` (`root`).
+`.revision`, `cloud.gigahost.init-system` (`systemd` or `openrc`),
+`cloud.gigahost.ssh-user` (`root`), `cloud.gigahost.minimum-memory-bytes`
+and `cloud.gigahost.x86-64-level`.
+
+An instance of an image needs at least its minimum memory: below it the
+package manager is killed for memory (dnf on EL 9 needs more than
+256 MiB without swap). Its host's CPU needs the image's x86-64
+microarchitecture level: 1 is the baseline, 2 is x86-64-v2 (SSE4.2,
+POPCNT), 3 is x86-64-v3 (AVX2, BMI2, FMA, MOVBE). Rocky Linux 10 and
+AlmaLinux 10 are built for x86-64-v3, and their init dies at once on a
+CPU without it (a pre-Haswell one, for instance).
 
 What each image holds: the init system (with D-Bus on systemd), the
 OpenSSH server, `iproute2`, `ping`, CA certificates, `curl`, `less`, a
 small `vi`, `procps`, `sudo`, cron and the time zone data, and the
-distribution's package manager set up for its usual mirrors. There is no
+distribution's package manager set up for its usual mirrors. The base's
+packages are upgraded when an image is built, so it holds its
+distribution's updates of that day. There is no
 kernel, boot loader, firmware, NetworkManager or cloud-init: the
 platform's init configures `eth0`, the host name, `/etc/hosts` and
 `/etc/resolv.conf` before the image's init starts, and nothing in the
@@ -43,8 +54,10 @@ gettys (the console is the machine's log), `systemd-networkd`,
 `systemd-resolved`, `systemd-timesyncd` (the guest clock is the host's
 `kvm-clock`), `systemd-firstboot`, udev (`/sys` is read-only),
 `systemd-remount-fs` and `networking.service`
-([`common/masked-units`](common/masked-units)); Alpine runs no getty and
-no `networking` service.
+([`common/masked-units`](common/masked-units)); Rocky and Alma leave
+`dnf-makecache.timer` off (dnf refreshes its metadata itself when it is
+run, and the hourly refresh takes about 190 MiB); Alpine runs no getty
+and no `networking` service.
 
 SSH: root logs in with the keys the platform writes to
 `/root/.ssh/authorized_keys`, never with a password
@@ -72,25 +85,31 @@ A bare name selects every version of it; no name selects every image.
 random seed or password hash, that the SSH policy is in force
 (`sshd -T`, after `ssh-keygen -A` in a throwaway container), the masked
 units, the services enabled at boot, the init at `/sbin/init`, the
-packages above and the image's labels, command and stop signal.
+packages above, that its C library and init need the x86-64 level
+`images.toml` gives (their `x86 ISA needed` notes, read with `readelf`),
+and the image's labels, command and stop signal.
 
 `tests/boot.sh` boots each image as a container machine under QEMU with
 KVM, with a kernel-linux release's `bzImage` and `initramfs.cpio.zst` in
 `DIR` (kernel-linux's `scripts/build.sh` makes them). The root disk is the
 image's files on ext4 (`mkfs.ext4 -d`; the init's unpack mode, which the
 platform uses, is kernel-linux's to test). Each image boots three
-instances: two from fresh disks at 256 MiB of memory, then the first again
-at 512 MiB. Each must reach `running` with no failed unit (OpenRC: every
-service of its runlevels started), accept a throwaway key for root over
-SSH, run cron and `crontab`, keep the platform's address, route and name
-server, and end with a `poweroff` report when powered off from inside; the
-two instances must have different host keys and machine IDs, and the
-first must keep its own across its two boots. The last boot also reaches
-the package mirrors (`apt-get update`, `dnf makecache`, `apk update`): dnf
-on EL 9 needs more than 256 MiB without swap. It reports each image's boot
-time to `running`, `MemAvailable` at 256 MiB and its gzip-compressed size.
-It needs podman, `qemu-system-x86_64`, `/dev/kvm`, `mkfs.ext4`, `ssh` and
-network access.
+instances, all at the image's minimum memory: two from fresh disks, the
+second on QEMU's oldest CPU model of the image's x86-64 level (`kvm64`,
+`Nehalem`, `Haswell-noTSX`), then the first again. Each must reach
+`running` with no failed unit (OpenRC: every service of its runlevels
+started), accept a throwaway key for root over SSH, run cron and
+`crontab`, keep the platform's address, route and name server, and end
+with a `poweroff` report when powered off from inside; the two instances
+must have different host keys and machine IDs, and the first must keep
+its own across its two boots. The last boot also reaches the package
+mirrors (`apt-get update`, `dnf makecache`, `apk update`), finds no
+package update pending (an image built days ago fails here: rebuild it),
+and starts the service of every active systemd timer, each of which must
+succeed with the system still `running`. It reports each image's boot
+time to `running`, `MemAvailable` at its minimum memory and its
+gzip-compressed size. It needs podman, `qemu-system-x86_64`, `/dev/kvm`,
+`mkfs.ext4`, `ssh` and network access.
 
 ## Publishing
 
@@ -98,8 +117,8 @@ network access.
 `tests/structure.sh` on pull requests and pushes. On pushes to `main` it
 then pushes the tested images to `ghcr.io/gigahost-apps/<name>:<version>`
 and `:<version>-<YYYYMMDD>`, and writes `images.json` (each image's name,
-version, display name, reference by the digest pushed, init, stop signal
-and SSH user) as a workflow artifact and as the asset of a release
+version, display name, reference by the digest pushed, init, stop signal,
+SSH user, minimum memory and x86-64 level) as a workflow artifact and as the asset of a release
 `images-<YYYYMMDD>-<n>`. The boot test does not run in CI: it needs KVM
 and a kernel-linux build.
 

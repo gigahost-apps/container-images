@@ -1,24 +1,30 @@
 #!/bin/bash
 # Checks built stock images without booting them: no host keys and no
 # machine ID in them, the SSH policy, the masked units, the services
-# enabled at boot, the init at the command's path, the image's config.
+# enabled at boot, the init at the command's path, the x86-64 level its
+# C library and init need, the image's config.
 #
 #   tests/structure.sh [NAME[:VERSION]...]   (every image without arguments)
 #
 # Each image is the one scripts/build.sh tagged
-# (localhost/gigahost-images/<name>:<version>), or IMAGE=REF for a single
-# NAME:VERSION.
+# (localhost/gigahost-images/<name>:<version>), or STRUCTURE_IMAGE=REF for
+# a single NAME:VERSION. Needs podman, python3 and readelf (binutils).
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=scripts/lib.sh
 . "${repo}/scripts/lib.sh"
 
+for tool in podman python3 readelf; do
+    command -v "${tool}" > /dev/null || { echo "structure.sh: ${tool} is not installed" >&2; exit 1; }
+done
 selected=$(select_images "$@")
-if [[ -n ${IMAGE:-} && $(wc -l <<< "${selected}") != 1 ]]; then
-    echo "structure.sh: IMAGE names one image; select one NAME:VERSION" >&2
+if [[ -n ${STRUCTURE_IMAGE:-} && $(wc -l <<< "${selected}") != 1 ]]; then
+    echo "structure.sh: STRUCTURE_IMAGE names one image; select one NAME:VERSION" >&2
     exit 1
 fi
+work=$(mktemp -d "${TMPDIR:-/tmp}/container-images-structure.XXXXXX")
+trap 'rm -rf "${work}"' EXIT
 masked_units=$(grep -v -E '^(#|$)' "${repo}/common/masked-units" | tr '\n' ' ')
 failures=0
 
@@ -75,9 +81,12 @@ if [ "${init}" = systemd ]; then
     for unit in ${enabled}; do
         [ "$(systemctl is-enabled "${unit}" 2> /dev/null)" = enabled ] || fail "${unit} is not enabled"
     done
-    if systemctl cat ssh.socket > /dev/null 2>&1; then
-        [ "$(systemctl is-enabled ssh.socket 2> /dev/null)" != enabled ] || fail "ssh.socket is enabled"
-    fi
+    # (systemctl cat needs a running systemd; is-enabled reads the files.)
+    for unit in ssh.socket dnf-makecache.timer; do
+        if [ -e "/usr/lib/systemd/system/${unit}" ] || [ -e "/lib/systemd/system/${unit}" ]; then
+            [ "$(systemctl is-enabled "${unit}" 2> /dev/null)" != enabled ] || fail "${unit} is enabled"
+        fi
+    done
 else
     grep -q -E "^(tty|ttyS|console)[0-9]*::respawn" /etc/inittab && fail "/etc/inittab starts a getty"
     for service in sshd crond; do
@@ -101,17 +110,40 @@ echo "${config}" | grep -q -x "kbdinteractiveauthentication no" || fail "keyboar
 true
 '
 
-while IFS=$'\t' read -r -u 3 name version _family init stop_signal _base display_name; do
-    image=${IMAGE:-$(image_tag "${name}" "${version}")}
+# needed_level IMAGE: the highest x86-64 level that the image's C library
+# or its init is marked as needing (glibc's loader refuses an object on a
+# CPU without it), 1 when neither is marked (the baseline, as with musl).
+needed_level() {
+    local notes needed path paths
+    # shellcheck disable=SC2016 # expanded by the image's shell
+    paths=$(podman run --rm --network none --entrypoint /bin/sh "$1" -c '
+        for libc in /lib64/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libc.so.6 /lib/ld-musl-x86_64.so.1; do
+            [ -e "${libc}" ] && readlink -f "${libc}" && break
+        done
+        readlink -f /sbin/init
+    ') || return 1
+    [[ $(wc -l <<< "${paths}") == 2 ]] || return 1
+    needed=
+    while IFS= read -r path; do
+        podman run --rm --network none --entrypoint /bin/cat "$1" "${path}" < /dev/null > "${work}/object" 2> /dev/null || return 1
+        notes=$(readelf -n "${work}/object") || return 1
+        needed+=$(sed -n 's/.*x86 ISA needed: //p' <<< "${notes}" | grep -o -E 'x86-64-v[0-9]' | sed 's/^x86-64-v//' || true)$'\n'
+    done <<< "${paths}"
+    needed=$(grep -E '^[0-9]+$' <<< "${needed}" | sort -n | tail -n 1 || true)
+    echo "${needed:-1}"
+}
+
+while IFS=$'\t' read -r -u 3 name version _family init stop_signal _base display_name memory level; do
+    image=${STRUCTURE_IMAGE:-$(image_tag "${name}" "${version}")}
     before=${failures}
     echo "structure.sh: ${image} (${display_name})"
     if ! config=$(podman image inspect --format json "${image}" 2> /dev/null); then
         fail "${image} is not built (scripts/build.sh ${name}:${version})"
         continue
     fi
-    problems=$(python3 - "${version}" "${display_name}" "${init}" "${stop_signal}" 3<<< "${config}" << 'PYTHON'
+    problems=$(python3 - "${version}" "${display_name}" "${init}" "${stop_signal}" "${memory}" "${level}" 3<<< "${config}" << 'PYTHON'
 import json, os, signal, sys
-version, title, init, stop = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+version, title, init, stop, memory, level = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5], sys.argv[6]
 image = json.load(os.fdopen(3))[0]
 config = image.get("Config") or {}
 labels = config.get("Labels") or {}
@@ -121,6 +153,8 @@ want = {
     "org.opencontainers.image.version": version,
     "cloud.gigahost.init-system": init,
     "cloud.gigahost.ssh-user": "root",
+    "cloud.gigahost.minimum-memory-bytes": memory,
+    "cloud.gigahost.x86-64-level": level,
 }
 for key, value in want.items():
     if labels.get(key) != value:
@@ -141,6 +175,11 @@ PYTHON
     while IFS= read -r problem; do
         [[ -n ${problem} ]] && fail "${problem}"
     done <<< "${problems}"
+    if ! needed=$(needed_level "${image}"); then
+        fail "the C library and the init could not be read"
+    elif [[ ${needed} != "${level}" ]]; then
+        fail "the C library or the init needs x86-64 level ${needed}; images.toml says ${level}"
+    fi
     # shellcheck disable=SC2086 # one unit a word
     inside_out=$(podman run --rm --network none --entrypoint /bin/sh "${image}" -c "${inside}" sh "${init}" ${masked_units} 2>&1) \
         || fail "the checks inside the image did not run: ${inside_out}"

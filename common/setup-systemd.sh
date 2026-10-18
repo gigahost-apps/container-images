@@ -36,6 +36,13 @@ case ${family} in
     rhel)
         # sshd.service wants sshd-keygen.target, whose units make the keys.
         systemctl enable sshd.service crond.service
+        # dnf-makecache.timer refreshes dnf's metadata every hour. dnf takes
+        # about 190 MiB for it, which a small instance does not have to
+        # spare (on EL 9 at 256 MiB it is killed for memory and the system
+        # is degraded); dnf refreshes the metadata itself when it is run.
+        if [ -e /usr/lib/systemd/system/dnf-makecache.timer ]; then
+            systemctl disable dnf-makecache.timer
+        fi
         ;;
     *)
         echo "setup-systemd.sh: unknown family ${family}" >&2

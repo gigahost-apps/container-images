@@ -44,7 +44,7 @@ print(max(tags, key=lambda t: tuple(map(int, t.split(".")))))'
 }
 
 changes=()
-while IFS=$'\t' read -r -u 3 name version family _init _stop base display_name; do
+while IFS=$'\t' read -r -u 3 name version family _init _stop base display_name _memory _level; do
     reference=${base%@*}
     path=${reference#docker.io/}
     repository=${path%:*}

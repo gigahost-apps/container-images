@@ -15,7 +15,7 @@ command -v podman > /dev/null || { echo "build.sh: podman is not installed" >&2;
 selected=$(select_images "$@")
 revision=$(git -C "${repo}" rev-parse HEAD 2> /dev/null || echo unknown)
 
-while IFS=$'\t' read -r -u 3 name version family _init _stop base display_name; do
+while IFS=$'\t' read -r -u 3 name version family _init _stop base display_name memory level; do
     tag=$(image_tag "${name}" "${version}")
     echo "build.sh: ${tag} from ${base}"
     podman build \
@@ -26,6 +26,8 @@ while IFS=$'\t' read -r -u 3 name version family _init _stop base display_name; 
         --build-arg "VERSION=${version}" \
         --build-arg "TITLE=${display_name}" \
         --build-arg "REVISION=${revision}" \
+        --build-arg "MINIMUM_MEMORY_BYTES=${memory}" \
+        --build-arg "X86_64_LEVEL=${level}" \
         --tag "${tag}" \
         "${repo}"
 done 3<<< "${selected}"

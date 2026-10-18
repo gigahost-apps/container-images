@@ -1,0 +1,44 @@
+# Weekly: resolves each base image's tag to its current digest
+# (scripts/update-bases.sh) and opens a pull request when one moved, so the
+# images are rebuilt on the distributions' updates once it is merged.
+name: Update bases
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Resolve the bases
+        run: scripts/update-bases.sh | tee changes.txt
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- images.toml; then
+            echo "every base is current"
+            exit 0
+          fi
+          branch="update-bases/$(date -u +%Y%m%d)"
+          git switch -c "$branch"
+          git add images.toml
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "Move the bases to their current digests" -m "$(cat changes.txt)"
+          git push --force origin "$branch"
+          if [ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --base main --head "$branch" \
+              --title "Move the bases to their current digests" \
+              --body-file changes.txt
+          fi

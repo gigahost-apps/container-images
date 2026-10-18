@@ -1,0 +1,184 @@
+# Builds every image and runs the structure tests on pull requests and
+# pushes. On pushes to main it also publishes the tested images to GHCR,
+# as ghcr.io/gigahost-apps/<name>:<version> and :<version>-<YYYYMMDD>,
+# and attaches images.json (the references by the digests pushed) to a
+# release images-<YYYYMMDD>-<n>. The boot test (tests/boot.sh) needs KVM
+# and a kernel-linux build, and does not run here.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      images: ${{ steps.list.outputs.images }}
+      date: ${{ steps.list.outputs.date }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint the scripts
+        run: shellcheck -x scripts/*.sh tests/*.sh common/*.sh images/alpine/*.sh
+      - name: List the images
+        id: list
+        run: |
+          repo=$PWD
+          . scripts/lib.sh
+          images=$(images_tsv | cut -f1,2 | tr '\t' ':' | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read().split()))')
+          echo "images=${images}" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.prepare.outputs.images) }}
+    env:
+      IMAGE: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: scripts/build.sh "$IMAGE"
+      - name: Structure tests
+        run: tests/structure.sh "$IMAGE"
+      - name: Save the tested image
+        id: save
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "slug=$(echo "$IMAGE" | tr ':.' '--')" >> "$GITHUB_OUTPUT"
+          podman save --format oci-archive -o image.tar "localhost/gigahost-images/$IMAGE"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.save.outcome == 'success'
+        with:
+          name: image-${{ steps.save.outputs.slug }}
+          path: image.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.prepare.outputs.images) }}
+    env:
+      IMAGE: ${{ matrix.image }}
+      DATE: ${{ needs.prepare.outputs.date }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Name the artifact
+        id: slug
+        run: echo "slug=$(echo "$IMAGE" | tr ':.' '--')" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-${{ steps.slug.outputs.slug }}
+      - name: Push to GHCR
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | skopeo login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          name=${IMAGE%%:*}
+          version=${IMAGE#*:}
+          dated="ghcr.io/gigahost-apps/${name}:${version}-${DATE}"
+          moving="ghcr.io/gigahost-apps/${name}:${version}"
+          skopeo copy --retry-times 3 --digestfile digest oci-archive:image.tar "docker://${dated}"
+          skopeo copy --retry-times 3 --preserve-digests "docker://${dated}" "docker://${moving}"
+          digest=$(cat digest)
+          for reference in "${dated}" "${moving}"; do
+            shown=$(skopeo inspect --format '{{.Digest}}' "docker://${reference}")
+            [[ ${shown} == "${digest}" ]] || { echo "${reference} is ${shown}, not ${digest}" >&2; exit 1; }
+          done
+          repo=$PWD
+          . scripts/lib.sh
+          select_images "$IMAGE" | python3 -c '
+          import json, sys
+          name, version, _family, init, stop, _base, display = sys.stdin.read().rstrip("\n").split("\t")
+          dated, digest = sys.argv[1], sys.argv[2]
+          json.dump({"name": name, "version": version, "display_name": display,
+                     "reference": f"{dated}@{digest}", "digest": digest, "init": init,
+                     "stop_signal": int(stop), "ssh_user": "root"}, sys.stdout)
+          ' "${dated}" "${digest}" > pushed.json
+          cat pushed.json
+          skopeo logout ghcr.io
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pushed-${{ steps.slug.outputs.slug }}
+          path: pushed.json
+          retention-days: 1
+          if-no-files-found: error
+
+  release:
+    needs: [prepare, publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      DATE: ${{ needs.prepare.outputs.date }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pushed-*
+          path: pushed
+      - name: Write images.json
+        run: |
+          set -euo pipefail
+          repo=$PWD
+          . scripts/lib.sh
+          images_tsv | python3 -c '
+          import glob, json, sys
+          pushed = {}
+          for path in glob.glob("pushed/*/pushed.json"):
+              entry = json.load(open(path))
+              pushed[(entry["name"], entry["version"])] = entry
+          images = []
+          for line in sys.stdin:
+              name, version = line.split("\t")[:2]
+              if (name, version) not in pushed:
+                  sys.exit(f"{name}:{version} was not pushed")
+              images.append(pushed[(name, version)])
+          json.dump({"images": images}, open("images.json", "w"), indent=2)
+          '
+          cat images.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: images.json
+          path: images.json
+          if-no-files-found: error
+      - name: Release images.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          count=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName \
+            --jq "[.[] | select(.tagName | startswith(\"images-${DATE}-\"))] | length")
+          tag="images-${DATE}-$((count + 1))"
+          gh release create "$tag" images.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Images ${DATE} #$((count + 1))" \
+            --notes "The stock images built from ${GITHUB_SHA}, by digest, in images.json."

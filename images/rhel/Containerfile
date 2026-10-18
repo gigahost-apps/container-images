@@ -1,0 +1,26 @@
+# Rocky Linux or AlmaLinux with systemd and OpenSSH, a small VM's packages,
+# for container machines (README.md). scripts/build.sh passes the build
+# arguments from images.toml; BASE is the official image by digest.
+ARG BASE=docker.io/library/almalinux:10@sha256:838c2fafefb1a8a0d7f8cdbc3b0551c2a2b1eb0cd87aad6d62aecadb18311f1b
+FROM ${BASE}
+ARG VERSION
+ARG TITLE
+ARG REVISION=unknown
+# curl-minimal, which the base has, is the curl command.
+RUN --mount=type=bind,source=common,target=/tmp/gigahost-build \
+    set -eu; \
+    dnf -y --setopt=install_weak_deps=False --setopt=tsflags=nodocs install \
+        systemd dbus-broker \
+        openssh-server openssh-clients \
+        iproute iputils ca-certificates less vim-minimal procps-ng sudo cronie tzdata; \
+    sh /tmp/gigahost-build/setup-systemd.sh rhel; \
+    dnf clean all; \
+    rm -rf /var/cache/dnf/* /var/log/dnf* /var/log/hawkey.log
+LABEL org.opencontainers.image.source="https://github.com/gigahost-apps/container-images" \
+      org.opencontainers.image.title="${TITLE}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      cloud.gigahost.init-system="systemd" \
+      cloud.gigahost.ssh-user="root"
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

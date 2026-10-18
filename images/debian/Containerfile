@@ -1,0 +1,28 @@
+# Debian with systemd and OpenSSH, a small VM's packages, for container
+# machines (README.md). scripts/build.sh passes the build arguments from
+# images.toml; BASE is the official image by digest.
+ARG BASE=docker.io/library/debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5
+FROM ${BASE}
+ARG VERSION
+ARG TITLE
+ARG REVISION=unknown
+COPY common/dpkg-excludes /etc/dpkg/dpkg.cfg.d/gigahost-excludes
+RUN --mount=type=bind,source=common,target=/tmp/gigahost-build \
+    set -eu; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        systemd systemd-sysv dbus libpam-systemd \
+        openssh-server \
+        iproute2 iputils-ping ca-certificates curl less vim-tiny procps sudo cron tzdata; \
+    sh /tmp/gigahost-build/setup-systemd.sh debian; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /var/log/apt/* /var/log/dpkg.log /var/cache/debconf/*-old
+LABEL org.opencontainers.image.source="https://github.com/gigahost-apps/container-images" \
+      org.opencontainers.image.title="${TITLE}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      cloud.gigahost.init-system="systemd" \
+      cloud.gigahost.ssh-user="root"
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

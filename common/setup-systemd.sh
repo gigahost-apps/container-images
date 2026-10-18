@@ -1,0 +1,49 @@
+#!/bin/sh
+# Run by the systemd images' Containerfiles after the packages are
+# installed: the SSH policy, the masked units, the services enabled at
+# boot, and nothing of an instance's own (host keys, machine ID) left in
+# the image.
+#
+#   setup-systemd.sh FAMILY     (debian, ubuntu or rhel)
+set -eu
+family=$1
+build=$(dirname "$0")
+
+install -d -m 0755 /etc/ssh/sshd_config.d
+install -m 0644 "${build}/sshd-gigahost.conf" /etc/ssh/sshd_config.d/00-gigahost.conf
+
+while read -r unit; do
+    case ${unit} in
+        '' | '#'*) continue ;;
+    esac
+    ln -sfn /dev/null "/etc/systemd/system/${unit}"
+done < "${build}/masked-units"
+
+case ${family} in
+    debian | ubuntu)
+        # Debian's and Ubuntu's sshd needs its host keys before it starts;
+        # this unit makes them at an instance's first boot.
+        install -m 0644 "${build}/gigahost-ssh-host-keys.service" /etc/systemd/system/
+        # Ubuntu starts sshd from ssh.socket; here sshd runs from boot, as on
+        # Debian.
+        if [ -e /usr/lib/systemd/system/ssh.socket ] || [ -e /lib/systemd/system/ssh.socket ]; then
+            systemctl disable ssh.socket
+        fi
+        systemctl enable gigahost-ssh-host-keys.service ssh.service cron.service
+        # The images' package installs may start services, as on a VM.
+        rm -f /usr/sbin/policy-rc.d
+        ;;
+    rhel)
+        # sshd.service wants sshd-keygen.target, whose units make the keys.
+        systemctl enable sshd.service crond.service
+        ;;
+    *)
+        echo "setup-systemd.sh: unknown family ${family}" >&2
+        exit 1
+        ;;
+esac
+
+# Every instance makes its own host keys and machine ID at its first boot.
+rm -f /etc/ssh/ssh_host_*
+: > /etc/machine-id
+rm -f /var/lib/dbus/machine-id

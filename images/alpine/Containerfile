@@ -1,0 +1,24 @@
+# Alpine with busybox init running OpenRC, and OpenSSH, a small VM's
+# packages, for container machines (README.md). scripts/build.sh passes
+# the build arguments from images.toml; BASE is the official image by
+# digest.
+ARG BASE=docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM ${BASE}
+ARG VERSION
+ARG TITLE
+ARG REVISION=unknown
+RUN --mount=type=bind,source=.,target=/tmp/gigahost-build \
+    set -eu; \
+    apk add --no-cache \
+        openrc busybox-openrc \
+        openssh-server openssh-sftp-server openssh-client \
+        iproute2 ca-certificates curl less procps-ng sudo tzdata; \
+    sh /tmp/gigahost-build/images/alpine/setup-openrc.sh
+LABEL org.opencontainers.image.source="https://github.com/gigahost-apps/container-images" \
+      org.opencontainers.image.title="${TITLE}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      cloud.gigahost.init-system="openrc" \
+      cloud.gigahost.ssh-user="root"
+STOPSIGNAL SIGUSR2
+CMD ["/sbin/init"]

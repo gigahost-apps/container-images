@@ -1,0 +1,103 @@
+# The stock images, one [[image]] each. scripts/build.sh builds them,
+# tests/ checks them, CI publishes them as ghcr.io/gigahost-apps/<name>:<version>.
+#
+#   name          the package name on GHCR
+#   version       the distribution's version, the image's tag
+#   display_name  the name people read
+#   family        images/<family>/Containerfile builds it
+#   init          systemd or openrc
+#   stop_signal   the signal on which the image's init shuts down, as a
+#                 number: 37 (SIGRTMIN+3) for systemd, 12 (SIGUSR2) for
+#                 busybox init running OpenRC
+#   base          the official image, by tag and digest; scripts/update-bases.sh
+#                 moves the digests (and Alpine's version to its current release)
+
+[[image]]
+name = "debian"
+version = "13"
+display_name = "Debian 13 (trixie)"
+family = "debian"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5"
+
+[[image]]
+name = "debian"
+version = "12"
+display_name = "Debian 12 (bookworm)"
+family = "debian"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/debian:12@sha256:2c037a04925515fdd6ea85ea14a682d0e79931f5e9f5d07b6dbfc6ba12f9e858"
+
+[[image]]
+name = "ubuntu"
+version = "26.04"
+display_name = "Ubuntu 26.04 LTS"
+family = "ubuntu"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944"
+
+[[image]]
+name = "ubuntu"
+version = "24.04"
+display_name = "Ubuntu 24.04 LTS"
+family = "ubuntu"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac"
+
+[[image]]
+name = "ubuntu"
+version = "22.04"
+display_name = "Ubuntu 22.04 LTS"
+family = "ubuntu"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956"
+
+[[image]]
+name = "alpine"
+version = "3.24"
+display_name = "Alpine Linux 3.24"
+family = "alpine"
+init = "openrc"
+stop_signal = 12
+base = "docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+
+[[image]]
+name = "rockylinux"
+version = "10"
+display_name = "Rocky Linux 10"
+family = "rhel"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834"
+
+[[image]]
+name = "rockylinux"
+version = "9"
+display_name = "Rocky Linux 9"
+family = "rhel"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/rockylinux/rockylinux:9@sha256:8101994123cf3d0a8fee517bee7f39e555c7d92bd2d9eb3303cc988a0eeed00f"
+
+[[image]]
+name = "almalinux"
+version = "10"
+display_name = "AlmaLinux 10"
+family = "rhel"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/almalinux:10@sha256:838c2fafefb1a8a0d7f8cdbc3b0551c2a2b1eb0cd87aad6d62aecadb18311f1b"
+
+[[image]]
+name = "almalinux"
+version = "9"
+display_name = "AlmaLinux 9"
+family = "rhel"
+init = "systemd"
+stop_signal = 37
+base = "docker.io/library/almalinux:9@sha256:9819dc675b67b595c2b59e42be7763fca1a8bb217fa5944e04daa22e9a64db16"

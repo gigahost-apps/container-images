@@ -1,0 +1,23 @@
+# The systemd units every systemd image masks: a container machine has no
+# terminals but its log on the console, no devices to manage (/sys is
+# read-only), and its network, DNS and clock are set up for it before the
+# image's init starts.
+console-getty.service
+container-getty@.service
+getty@.service
+autovt@.service
+serial-getty@.service
+systemd-networkd.service
+systemd-networkd.socket
+systemd-networkd-wait-online.service
+systemd-network-generator.service
+systemd-resolved.service
+systemd-timesyncd.service
+systemd-firstboot.service
+systemd-udevd.service
+systemd-udevd-control.socket
+systemd-udevd-kernel.socket
+systemd-udev-trigger.service
+systemd-udev-settle.service
+systemd-remount-fs.service
+networking.service

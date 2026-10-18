@@ -114,13 +114,23 @@ gzip-compressed size. It needs podman, `qemu-system-x86_64`, `/dev/kvm`,
 ## Publishing
 
 [CI](.github/workflows/ci.yml) builds every image and runs
-`tests/structure.sh` on pull requests and pushes. On pushes to `main` it
-then pushes the tested images to `ghcr.io/gigahost-apps/<name>:<version>`
-and `:<version>-<YYYYMMDD>`, and writes `images.json` (each image's name,
-version, display name, reference by the digest pushed, init, stop signal,
-SSH user, minimum memory and x86-64 level) as a workflow artifact and as the asset of a release
-`images-<YYYYMMDD>-<n>`. The boot test does not run in CI: it needs KVM
-and a kernel-linux build.
+`tests/structure.sh` on pull requests and pushes. On `main` (a push, a
+weekly scheduled run, which rebuilds the images with their distributions'
+updates whether or not a base moved, or a run started by hand) it then
+pushes the tested images to `ghcr.io/gigahost-apps/<name>:<version>` and
+`:<version>-<YYYYMMDD>-<n>`, and writes `images.json` as a workflow
+artifact and as the asset of a release `images-<YYYYMMDD>-<n>`, with the
+same `n`: one more than the day's highest release. A dated tag that a
+release names is never pushed again (a run that fails before its release
+leaves dated tags that no release names, and the next run reuses them). The boot test does not run in CI: it
+needs KVM and a kernel-linux build.
+
+Each entry of `images.json` has the image's `name`, `version`,
+`display_name`, `reference`, `digest`, `tag` (the dated tag, such as
+`13-20261019-1`), `init`, `stop_signal`, `ssh_user`,
+`minimum_memory_bytes` and `x86_64_level`. The `reference` is
+`ghcr.io/gigahost-apps/<name>@sha256:<hex>`, repository and digest
+without a tag, which names one image for good.
 
 A weekly [workflow](.github/workflows/update-bases.yml) runs
 `scripts/update-bases.sh`, which moves each base to the digest its tag
@@ -133,11 +143,13 @@ For the maintainer:
   Set each package (`debian`, `ubuntu`, `alpine`, `rockylinux`,
   `almalinux`) public once, in its package settings; the images are meant
   to be pulled without credentials.
-- The weekly workflow needs "Allow GitHub Actions to create and approve
-  pull requests" in the repository's Actions settings. A pull request it
-  opens does not start CI by itself (GitHub runs no workflow for the
-  workflow token's events): close and reopen it, or push to its branch,
-  to run the checks.
+- GitHub turns a public repository's scheduled workflows off after 60
+  days without activity in it; turn them on again in the Actions tab.
+- The base-update workflow needs "Allow GitHub Actions to create and
+  approve pull requests" in the repository's Actions settings. A pull
+  request it opens does not start CI by itself (GitHub runs no workflow
+  for the workflow token's events): close and reopen it, or push to its
+  branch, to run the checks.
 
 ## Licence
 

@@ -1,6 +1,7 @@
 # Weekly: resolves each base image's tag to its current digest
 # (scripts/update-bases.sh) and opens a pull request when one moved, so the
-# images are rebuilt on the distributions' updates once it is merged.
+# images are built on the new bases once it is merged. (CI's own weekly
+# run rebuilds the images with their distributions' updates in between.)
 name: Update bases
 
 on:
@@ -10,6 +11,12 @@ on:
 
 permissions:
   contents: read
+
+# bash -eo pipefail: a failing update-bases.sh fails its step, which tee
+# would otherwise hide.
+defaults:
+  run:
+    shell: bash
 
 jobs:
   update:

@@ -199,6 +199,7 @@ if printf "@daily true\n" | crontab - && crontab -l | grep -q -x "@daily true" &
 else
     echo "crontab fail"
 fi
+echo "hostname $(hostname)"
 echo "eth0 $(ip -4 -o addr show dev eth0 | awk "{ print \$4 }" | tr "\n" " ")"
 echo "route $(ip -4 route show default | tr "\n" " ")"
 echo "dns $(grep "^nameserver" /etc/resolv.conf | awk "{ print \$2 }" | tr "\n" " ")"
@@ -308,12 +309,12 @@ PYTHON
     fi
     wait "${qemu_pid}" 2> /dev/null || true
     qemu_pid=
-    check_instance "${name}" "${init}" "${mirrors}"
+    check_instance "${name}" "${init}" "${hostname}" "${mirrors}"
 }
 
-# check_instance CASE INIT [mirrors]: the instance's lines and reports.
+# check_instance CASE INIT HOSTNAME [mirrors]: the instance's lines and reports.
 check_instance() {
-    local name=$1 init=$2 mirrors=${3:-} failed
+    local name=$1 init=$2 hostname=$3 mirrors=${4:-} failed
     local before=${image_failures}
     [[ $(value state) == running ]] || fail "${name}: the init's state is $(value state), not running"
     failed=$(sed -n 's/^failed //p' "${case_dir}/inside.txt" | tr '\n' ' ')
@@ -324,6 +325,7 @@ check_instance() {
     esac
     [[ $(value cron_daemon) == active ]] || fail "${name}: cron is $(value cron_daemon)"
     [[ $(value crontab) == ok ]] || fail "${name}: crontab does not work"
+    [[ $(value hostname) == "${hostname}" ]] || fail "${name}: the host name is $(value hostname), not ${hostname}"
     [[ $(value eth0) == 10.115.0.15/24 ]] || fail "${name}: eth0 has $(value eth0)"
     [[ $(value route) == "default via 10.115.0.1 dev eth0"* ]] || fail "${name}: the default route is $(value route)"
     [[ $(value dns) == 10.115.0.3 ]] || fail "${name}: the name servers are $(value dns)"

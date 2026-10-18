@@ -17,7 +17,7 @@ version 3, `init_system`). They are published on GHCR as
 | Ubuntu 26.04 LTS | `ubuntu:26.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
 | Ubuntu 24.04 LTS | `ubuntu:24.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
 | Ubuntu 22.04 LTS | `ubuntu:22.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
-| Alpine Linux 3.24 | `alpine:3.24` | busybox init running OpenRC | 12 (`SIGUSR2`) | 256 MiB | 1 |
+| Alpine Linux (its current release) | `alpine:<release>` | busybox init running OpenRC | 12 (`SIGUSR2`) | 256 MiB | 1 |
 | Rocky Linux 10 | `rockylinux:10` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 3 |
 | Rocky Linux 9 | `rockylinux:9` | systemd | 37 (`SIGRTMIN+3`) | 512 MiB | 2 |
 | AlmaLinux 10 | `almalinux:10` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 3 |

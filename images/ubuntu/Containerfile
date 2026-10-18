@@ -1,7 +1,7 @@
 # Ubuntu with systemd and OpenSSH, a small VM's packages, for container
 # machines (README.md). scripts/build.sh passes the build arguments from
-# images.toml; BASE is the official image by digest.
-ARG BASE=docker.io/library/ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+# images.toml; BASE (required) is the official image by digest.
+ARG BASE
 FROM ${BASE}
 ARG VERSION
 ARG TITLE

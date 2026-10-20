@@ -23,7 +23,7 @@
 [[image]]
 name = "debian"
 version = "13"
-display_name = "Debian 13 (trixie)"
+display_name = "Debian 13"
 family = "debian"
 init = "systemd"
 stop_signal = 37
@@ -34,7 +34,7 @@ x86_64_level = 1
 [[image]]
 name = "debian"
 version = "12"
-display_name = "Debian 12 (bookworm)"
+display_name = "Debian 12"
 family = "debian"
 init = "systemd"
 stop_signal = 37

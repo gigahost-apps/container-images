@@ -12,8 +12,8 @@ version 3, `init_system`). They are published on GHCR as
 
 | Image | Name and tag | Init | Stop signal | Minimum memory | x86-64 level |
 |---|---|---|---|---|---|
-| Debian 13 (trixie) | `debian:13` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
-| Debian 12 (bookworm) | `debian:12` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Debian 13 | `debian:13` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
+| Debian 12 | `debian:12` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
 | Ubuntu 26.04 LTS | `ubuntu:26.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
 | Ubuntu 24.04 LTS | `ubuntu:24.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |
 | Ubuntu 22.04 LTS | `ubuntu:22.04` | systemd | 37 (`SIGRTMIN+3`) | 256 MiB | 1 |

@@ -27,7 +27,7 @@ display_name = "Debian 13"
 family = "debian"
 init = "systemd"
 stop_signal = 37
-base = "docker.io/library/debian:13@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5"
+base = "docker.io/library/debian:13@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308"
 minimum_memory_bytes = 268_435_456 # 256 MiB
 x86_64_level = 1
 
@@ -38,7 +38,7 @@ display_name = "Debian 12"
 family = "debian"
 init = "systemd"
 stop_signal = 37
-base = "docker.io/library/debian:12@sha256:2c037a04925515fdd6ea85ea14a682d0e79931f5e9f5d07b6dbfc6ba12f9e858"
+base = "docker.io/library/debian:12@sha256:854dd8ab51d62866dbd8f5431d15ce77b12983a2a4a1e1fe43a2395dc7ef9f61"
 minimum_memory_bytes = 268_435_456 # 256 MiB
 x86_64_level = 1
 
@@ -82,7 +82,7 @@ display_name = "Alpine Linux 3.24"
 family = "alpine"
 init = "openrc"
 stop_signal = 12
-base = "docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+base = "docker.io/library/alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a"
 minimum_memory_bytes = 268_435_456 # 256 MiB
 x86_64_level = 1
 

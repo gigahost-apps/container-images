@@ -1,7 +1,7 @@
 # Builds every image and runs the structure tests on pull requests and
 # pushes. On main (a push, the weekly schedule, which rebuilds the images
 # with their distributions' updates, or a run by hand) it also publishes
-# the tested images to GHCR, as ghcr.io/gigahost-apps/<name>:<version> and
+# the tested images to GHCR, as ghcr.io/ghostrack-io/<name>:<version> and
 # :<version>-<YYYYMMDD>-<n>, and attaches images.json (the references by
 # the digests pushed) to a release images-<YYYYMMDD>-<n>, the same n. The
 # boot test (tests/boot.sh) needs KVM and a kernel-linux build, and does
@@ -141,7 +141,7 @@ jobs:
           name=${SELECTED%%:*}
           version=${SELECTED#*:}
           tag="${version}-${DATE}-${NUMBER}"
-          repository="ghcr.io/gigahost-apps/${name}"
+          repository="ghcr.io/ghostrack-io/${name}"
           dated="${repository}:${tag}"
           moving="${repository}:${version}"
           skopeo copy --retry-times 3 --digestfile digest oci-archive:image.tar "docker://${dated}"

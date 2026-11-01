@@ -1,5 +1,5 @@
 # The stock images, one [[image]] each. scripts/build.sh builds them,
-# tests/ checks them, CI publishes them as ghcr.io/gigahost-apps/<name>:<version>.
+# tests/ checks them, CI publishes them as ghcr.io/ghostrack-io/<name>:<version>.
 #
 #   name          the package name on GHCR
 #   version       the distribution's version, the image's tag

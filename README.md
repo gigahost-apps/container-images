@@ -4,9 +4,9 @@ Stock images for container virtual machines that behave like a small VM:
 the official Debian, Ubuntu, Alpine, Rocky Linux and AlmaLinux images with
 their own init system (systemd, or OpenRC on Alpine) and OpenSSH, ready to
 run under the init of
-[kernel-linux](https://github.com/gigahost-apps/kernel-linux) (interface
+[kernel-linux](https://github.com/ghostrack-io/kernel-linux) (interface
 version 3, `init_system`). They are published on GHCR as
-`ghcr.io/gigahost-apps/<name>:<version>`.
+`ghcr.io/ghostrack-io/<name>:<version>`.
 
 ## The images
 
@@ -117,7 +117,7 @@ gzip-compressed size. It needs podman, `qemu-system-x86_64`, `/dev/kvm`,
 `tests/structure.sh` on pull requests and pushes. On `main` (a push, a
 weekly scheduled run, which rebuilds the images with their distributions'
 updates whether or not a base moved, or a run started by hand) it then
-pushes the tested images to `ghcr.io/gigahost-apps/<name>:<version>` and
+pushes the tested images to `ghcr.io/ghostrack-io/<name>:<version>` and
 `:<version>-<YYYYMMDD>-<n>`, and writes `images.json` as a workflow
 artifact and as the asset of a release `images-<YYYYMMDD>-<n>`, with the
 same `n`: one more than the day's highest release. A dated tag that a
@@ -129,7 +129,7 @@ Each entry of `images.json` has the image's `name`, `version`,
 `display_name`, `reference`, `digest`, `tag` (the dated tag, such as
 `13-20261019-1`), `init`, `stop_signal`, `ssh_user`,
 `minimum_memory_bytes` and `x86_64_level`. The `reference` is
-`ghcr.io/gigahost-apps/<name>@sha256:<hex>`, repository and digest
+`ghcr.io/ghostrack-io/<name>@sha256:<hex>`, repository and digest
 without a tag, which names one image for good.
 
 A weekly [workflow](.github/workflows/update-bases.yml) runs

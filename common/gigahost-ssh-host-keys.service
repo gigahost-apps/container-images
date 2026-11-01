@@ -1,6 +1,6 @@
 [Unit]
 Description=Make this instance's SSH host keys
-Documentation=https://github.com/gigahost-apps/container-images
+Documentation=https://github.com/ghostrack-io/container-images
 Before=ssh.service sshd.service ssh.socket
 ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key
 ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key

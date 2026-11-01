@@ -21,7 +21,7 @@ RUN --mount=type=bind,source=common,target=/tmp/gigahost-build \
     sh /tmp/gigahost-build/setup-systemd.sh rhel; \
     dnf clean all; \
     rm -rf /var/cache/dnf/* /var/log/dnf* /var/log/hawkey.log
-LABEL org.opencontainers.image.source="https://github.com/gigahost-apps/container-images" \
+LABEL org.opencontainers.image.source="https://github.com/ghostrack-io/container-images" \
       org.opencontainers.image.title="${TITLE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \

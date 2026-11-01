@@ -148,7 +148,7 @@ image = json.load(os.fdopen(3))[0]
 config = image.get("Config") or {}
 labels = config.get("Labels") or {}
 want = {
-    "org.opencontainers.image.source": "https://github.com/gigahost-apps/container-images",
+    "org.opencontainers.image.source": "https://github.com/ghostrack-io/container-images",
     "org.opencontainers.image.title": title,
     "org.opencontainers.image.version": version,
     "cloud.gigahost.init-system": init,

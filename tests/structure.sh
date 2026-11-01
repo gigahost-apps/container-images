@@ -7,7 +7,7 @@
 #   tests/structure.sh [NAME[:VERSION]...]   (every image without arguments)
 #
 # Each image is the one scripts/build.sh tagged
-# (localhost/gigahost-images/<name>:<version>), or STRUCTURE_IMAGE=REF for
+# (localhost/ghostrack-images/<name>:<version>), or STRUCTURE_IMAGE=REF for
 # a single NAME:VERSION. Needs podman, python3 and readelf (binutils).
 set -euo pipefail
 
@@ -73,8 +73,8 @@ if [ "${init}" = systemd ]; then
     for unit in "$@"; do
         [ "$(readlink "/etc/systemd/system/${unit}")" = /dev/null ] || fail "${unit} is not masked"
     done
-    if [ -e /etc/systemd/system/gigahost-ssh-host-keys.service ]; then
-        enabled="gigahost-ssh-host-keys.service ssh.service cron.service"
+    if [ -e /etc/systemd/system/ghostrack-ssh-host-keys.service ]; then
+        enabled="ghostrack-ssh-host-keys.service ssh.service cron.service"
     else
         enabled="sshd.service crond.service"
     fi
@@ -151,10 +151,10 @@ want = {
     "org.opencontainers.image.source": "https://github.com/ghostrack-io/container-images",
     "org.opencontainers.image.title": title,
     "org.opencontainers.image.version": version,
-    "cloud.gigahost.init-system": init,
-    "cloud.gigahost.ssh-user": "root",
-    "cloud.gigahost.minimum-memory-bytes": memory,
-    "cloud.gigahost.x86-64-level": level,
+    "io.ghostrack.init-system": init,
+    "io.ghostrack.ssh-user": "root",
+    "io.ghostrack.minimum-memory-bytes": memory,
+    "io.ghostrack.x86-64-level": level,
 }
 for key, value in want.items():
     if labels.get(key) != value:

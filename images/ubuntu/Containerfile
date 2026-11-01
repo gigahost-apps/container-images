@@ -8,10 +8,10 @@ ARG TITLE
 ARG REVISION=unknown
 ARG MINIMUM_MEMORY_BYTES
 ARG X86_64_LEVEL
-COPY common/dpkg-excludes /etc/dpkg/dpkg.cfg.d/gigahost-excludes
+COPY common/dpkg-excludes /etc/dpkg/dpkg.cfg.d/ghostrack-excludes
 # The base's packages are upgraded first, so an image holds its
 # distribution's updates of the day it is built (CI rebuilds them weekly).
-RUN --mount=type=bind,source=common,target=/tmp/gigahost-build \
+RUN --mount=type=bind,source=common,target=/tmp/ghostrack-build \
     set -eu; \
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
@@ -20,16 +20,16 @@ RUN --mount=type=bind,source=common,target=/tmp/gigahost-build \
         systemd systemd-sysv dbus libpam-systemd \
         openssh-server \
         iproute2 iputils-ping ca-certificates curl less vim-tiny procps sudo cron tzdata; \
-    sh /tmp/gigahost-build/setup-systemd.sh ubuntu; \
+    sh /tmp/ghostrack-build/setup-systemd.sh ubuntu; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/* /var/log/apt/* /var/log/dpkg.log /var/cache/debconf/*-old
 LABEL org.opencontainers.image.source="https://github.com/ghostrack-io/container-images" \
       org.opencontainers.image.title="${TITLE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
-      cloud.gigahost.init-system="systemd" \
-      cloud.gigahost.ssh-user="root" \
-      cloud.gigahost.minimum-memory-bytes="${MINIMUM_MEMORY_BYTES}" \
-      cloud.gigahost.x86-64-level="${X86_64_LEVEL}"
+      io.ghostrack.init-system="systemd" \
+      io.ghostrack.ssh-user="root" \
+      io.ghostrack.minimum-memory-bytes="${MINIMUM_MEMORY_BYTES}" \
+      io.ghostrack.x86-64-level="${X86_64_LEVEL}"
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

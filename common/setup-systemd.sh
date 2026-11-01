@@ -10,7 +10,7 @@ family=$1
 build=$(dirname "$0")
 
 install -d -m 0755 /etc/ssh/sshd_config.d
-install -m 0644 "${build}/sshd-gigahost.conf" /etc/ssh/sshd_config.d/00-gigahost.conf
+install -m 0644 "${build}/sshd-ghostrack.conf" /etc/ssh/sshd_config.d/00-ghostrack.conf
 
 while read -r unit; do
     case ${unit} in
@@ -23,13 +23,13 @@ case ${family} in
     debian | ubuntu)
         # Debian's and Ubuntu's sshd needs its host keys before it starts;
         # this unit makes them at an instance's first boot.
-        install -m 0644 "${build}/gigahost-ssh-host-keys.service" /etc/systemd/system/
+        install -m 0644 "${build}/ghostrack-ssh-host-keys.service" /etc/systemd/system/
         # Ubuntu starts sshd from ssh.socket; here sshd runs from boot, as on
         # Debian.
         if [ -e /usr/lib/systemd/system/ssh.socket ] || [ -e /lib/systemd/system/ssh.socket ]; then
             systemctl disable ssh.socket
         fi
-        systemctl enable gigahost-ssh-host-keys.service ssh.service cron.service
+        systemctl enable ghostrack-ssh-host-keys.service ssh.service cron.service
         # The images' package installs may start services, as on a VM.
         rm -f /usr/sbin/policy-rc.d
         ;;

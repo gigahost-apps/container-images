@@ -11,21 +11,21 @@ ARG MINIMUM_MEMORY_BYTES
 ARG X86_64_LEVEL
 # The base's packages are upgraded first, so an image holds its
 # distribution's updates of the day it is built (CI rebuilds them weekly).
-RUN --mount=type=bind,source=.,target=/tmp/gigahost-build \
+RUN --mount=type=bind,source=.,target=/tmp/ghostrack-build \
     set -eu; \
     apk upgrade --no-cache; \
     apk add --no-cache \
         openrc busybox-openrc \
         openssh-server openssh-sftp-server openssh-client \
         iproute2 ca-certificates curl less procps-ng sudo tzdata; \
-    sh /tmp/gigahost-build/images/alpine/setup-openrc.sh
+    sh /tmp/ghostrack-build/images/alpine/setup-openrc.sh
 LABEL org.opencontainers.image.source="https://github.com/ghostrack-io/container-images" \
       org.opencontainers.image.title="${TITLE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
-      cloud.gigahost.init-system="openrc" \
-      cloud.gigahost.ssh-user="root" \
-      cloud.gigahost.minimum-memory-bytes="${MINIMUM_MEMORY_BYTES}" \
-      cloud.gigahost.x86-64-level="${X86_64_LEVEL}"
+      io.ghostrack.init-system="openrc" \
+      io.ghostrack.ssh-user="root" \
+      io.ghostrack.minimum-memory-bytes="${MINIMUM_MEMORY_BYTES}" \
+      io.ghostrack.x86-64-level="${X86_64_LEVEL}"
 STOPSIGNAL SIGUSR2
 CMD ["/sbin/init"]

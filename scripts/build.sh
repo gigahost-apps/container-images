@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds stock images with podman, as images.toml describes them, and tags
-# each localhost/gigahost-images/<name>:<version>.
+# each localhost/ghostrack-images/<name>:<version>.
 #
 #   scripts/build.sh [NAME[:VERSION]...]     (every image without arguments)
 #

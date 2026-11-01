@@ -21,7 +21,7 @@ for service in killprocs savecache; do
 done
 
 install -d -m 0755 /etc/ssh/sshd_config.d
-install -m 0644 "${build}/common/sshd-gigahost.conf" /etc/ssh/sshd_config.d/00-gigahost.conf
+install -m 0644 "${build}/common/sshd-ghostrack.conf" /etc/ssh/sshd_config.d/00-ghostrack.conf
 
 # root has no password; a locked one ("!") would also refuse its keys,
 # since this sshd has no PAM.

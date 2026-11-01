@@ -53,7 +53,7 @@ PYTHON
 
 # image_tag NAME VERSION: the tag scripts/build.sh gives the image.
 image_tag() {
-    echo "localhost/gigahost-images/$1:$2"
+    echo "localhost/ghostrack-images/$1:$2"
 }
 
 # select_images [NAME[:VERSION]...]: the lines of images_tsv the arguments

@@ -28,9 +28,9 @@ images on Docker Hub, pinned by digest. Each image's command is
 `/sbin/init`, run as the container's init system; its `STOPSIGNAL` is the
 signal on which that init shuts down cleanly (the kernel delivers no other
 to it). Labels: `org.opencontainers.image.source`, `.title`, `.version`,
-`.revision`, `cloud.gigahost.init-system` (`systemd` or `openrc`),
-`cloud.gigahost.ssh-user` (`root`), `cloud.gigahost.minimum-memory-bytes`
-and `cloud.gigahost.x86-64-level`.
+`.revision`, `io.ghostrack.init-system` (`systemd` or `openrc`),
+`io.ghostrack.ssh-user` (`root`), `io.ghostrack.minimum-memory-bytes`
+and `io.ghostrack.x86-64-level`.
 
 An instance of an image needs at least its minimum memory: below it the
 package manager is killed for memory (dnf on EL 9 needs more than
@@ -66,7 +66,7 @@ SSH: root logs in with the keys the platform writes to
 
 Per instance: an image holds no SSH host keys and an empty
 `/etc/machine-id`. Each instance makes its own host keys at its first
-boot, before sshd starts (`gigahost-ssh-host-keys.service` on Debian and
+boot, before sshd starts (`ghostrack-ssh-host-keys.service` on Debian and
 Ubuntu, `sshd-keygen@.service` on Rocky and Alma, sshd's OpenRC service on
 Alpine), and systemd makes its machine ID; both are kept on the instance's
 disk from then on.
@@ -74,7 +74,7 @@ disk from then on.
 ## Building and testing
 
 ```sh
-scripts/build.sh [NAME[:VERSION]...]       # podman; tags localhost/gigahost-images/<name>:<version>
+scripts/build.sh [NAME[:VERSION]...]       # podman; tags localhost/ghostrack-images/<name>:<version>
 tests/structure.sh [NAME[:VERSION]...]     # checks the built images without booting them
 tests/boot.sh --kernel DIR [NAME[:VERSION]...]
 ```

@@ -11,23 +11,23 @@ ARG X86_64_LEVEL
 # The base's packages are upgraded first, so an image holds its
 # distribution's updates of the day it is built (CI rebuilds them weekly).
 # curl-minimal, which the base has, is the curl command.
-RUN --mount=type=bind,source=common,target=/tmp/gigahost-build \
+RUN --mount=type=bind,source=common,target=/tmp/ghostrack-build \
     set -eu; \
     dnf -y --setopt=install_weak_deps=False --setopt=tsflags=nodocs upgrade --refresh; \
     dnf -y --setopt=install_weak_deps=False --setopt=tsflags=nodocs install \
         systemd dbus-broker \
         openssh-server openssh-clients \
         iproute iputils ca-certificates less vim-minimal procps-ng sudo cronie tzdata; \
-    sh /tmp/gigahost-build/setup-systemd.sh rhel; \
+    sh /tmp/ghostrack-build/setup-systemd.sh rhel; \
     dnf clean all; \
     rm -rf /var/cache/dnf/* /var/log/dnf* /var/log/hawkey.log
 LABEL org.opencontainers.image.source="https://github.com/ghostrack-io/container-images" \
       org.opencontainers.image.title="${TITLE}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
-      cloud.gigahost.init-system="systemd" \
-      cloud.gigahost.ssh-user="root" \
-      cloud.gigahost.minimum-memory-bytes="${MINIMUM_MEMORY_BYTES}" \
-      cloud.gigahost.x86-64-level="${X86_64_LEVEL}"
+      io.ghostrack.init-system="systemd" \
+      io.ghostrack.ssh-user="root" \
+      io.ghostrack.minimum-memory-bytes="${MINIMUM_MEMORY_BYTES}" \
+      io.ghostrack.x86-64-level="${X86_64_LEVEL}"
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]
